@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from app.models.user_model import Client, ServiceProvider
 from app.auth.token_utils import hash_password, verify_password
 
@@ -17,8 +18,10 @@ def create_client(db: Session, data):
     db.refresh(new_client)
     return new_client
 
-def authenticate_client(db: Session, username: str, password: str):
-    client = db.query(Client).filter(Client.username == username).first()
+def authenticate_client(db: Session, username_or_email: str, password: str):
+    client = db.query(Client).filter(
+        or_(Client.username == username_or_email, Client.email == username_or_email)
+    ).first()
     if not client or not client.hashed_password:
         return None
     if not verify_password(password, client.hashed_password):
@@ -43,8 +46,10 @@ def create_provider(db: Session, data):
     db.refresh(new_provider)
     return new_provider
 
-def authenticate_provider(db: Session, username: str, password: str):
-    provider = db.query(ServiceProvider).filter(ServiceProvider.username == username).first()
+def authenticate_provider(db: Session, username_or_email: str, password: str):
+    provider = db.query(ServiceProvider).filter(
+        or_(ServiceProvider.username == username_or_email, ServiceProvider.email == username_or_email)
+    ).first()
     if not provider or not provider.hashed_password:
         return None
     if not verify_password(password, provider.hashed_password):
@@ -71,8 +76,10 @@ def create_superadmin(db: Session, data):
     db.refresh(new_admin)
     return new_admin
 
-def authenticate_superadmin(db: Session, username: str, password: str):
-    admin = db.query(SuperAdmin).filter(SuperAdmin.username == username).first()
+def authenticate_superadmin(db: Session, username_or_email: str, password: str):
+    admin = db.query(SuperAdmin).filter(
+        or_(SuperAdmin.username == username_or_email, SuperAdmin.email == username_or_email)
+    ).first()
     if not admin:
         return None
     if not verify_password(password, admin.hashed_password):
