@@ -3,7 +3,6 @@ from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from fastapi.security import OAuth2PasswordRequestForm
 from authlib.integrations.starlette_client import OAuthError
 
 from app.database.database import get_db
@@ -12,7 +11,7 @@ from app.services import auth_services
 from app.auth.token_utils import create_access_token
 from app.auth.google_oauth import oauth
 from app.auth.oauth import get_current_user_data
-from app.models.user_model import Client, ServiceProvider
+from app.models.user_model import User
 
 router = APIRouter()
 
@@ -22,19 +21,21 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
 @router.post("/client/signup", response_model=UserProfile)
 def client_signup(data: UserRegister, db: Session = Depends(get_db)):
-    client = auth_services.create_client(db, data)
-    if not client:
-        raise HTTPException(status_code=400, detail="Client with this email already exists")
-    return {"username": client.username, "email": client.email, "user_type": "client"}
+    user = auth_services.create_user(db, data, 'client')
+    return {"username": user.username, "email": user.email, "user_type": "client"}
 
 @router.post("/client/login", response_model=Token)
 def client_login(data: UserLogin, db: Session = Depends(get_db)):
-    client = auth_services.authenticate_client(db, data.email, data.password)
-    if not client:
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
+    user = auth_services.authenticate_user(db, data.email, data.password, 'client')
+    if not user:
+        raise HTTPException(status_code=401, detail="Incorrect email or password, or you do not have client access")
     
-    access_token = create_access_token(data={"sub": client.email, "user_type": "client"})
-    return {"access_token": access_token, "token_type": "bearer"}
+    access_token = create_access_token(data={"sub": user.email, "user_type": "client"})
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "user": {"username": user.username, "email": user.email, "user_type": "client"}
+    }
 
 @router.get("/client/oauth")
 async def client_oauth(request: Request):
@@ -69,28 +70,27 @@ async def auth_callback(request: Request, db: Session = Depends(get_db)):
     role = request.session.get('oauth_role', 'client')
     
     try:
+        # Find or create user and enable the role
+        user = db.query(User).filter(User.email == email).first()
+        if not user:
+            user = User(username=username, email=email, google_id=google_id, is_active=True)
+            db.add(user)
+        
+        # Apply the role flag
         if role == 'client':
-            user = auth_services.get_client_by_email(db, email)
-            if not user:
-                user = Client(username=username, email=email, google_id=google_id, is_active=True)
-                db.add(user)
-                db.commit()
-                db.refresh(user)
-        else:
-            user = auth_services.get_provider_by_email(db, email)
-            if not user:
-                user = ServiceProvider(username=username, email=email, google_id=google_id, is_active=True)
-                db.add(user)
-                db.commit()
-                db.refresh(user)
+            user.is_client = True
+        elif role == 'provider':
+            user.is_provider = True
+        
+        # Update google_id if not set
+        if not user.google_id:
+            user.google_id = google_id
+            
+        db.commit()
+        db.refresh(user)
     except IntegrityError:
         db.rollback()
-        # User might already exist or there is a conflict
-        if role == 'client':
-            user = auth_services.get_client_by_email(db, email)
-        else:
-            user = auth_services.get_provider_by_email(db, email)
-        
+        user = db.query(User).filter(User.email == email).first()
         if not user:
             raise HTTPException(status_code=400, detail="Database integrity error during user creation")
     except Exception as e:
@@ -104,37 +104,42 @@ async def auth_callback(request: Request, db: Session = Depends(get_db)):
 
 @router.post("/provider/signup", response_model=UserProfile)
 def provider_signup(data: UserRegister, db: Session = Depends(get_db)):
-    provider = auth_services.create_provider(db, data)
-    if not provider:
-        raise HTTPException(status_code=400, detail="Provider with this email already exists")
-    return {"username": provider.username, "email": provider.email, "user_type": "provider"}
+    user = auth_services.create_user(db, data, 'provider')
+    return {"username": user.username, "email": user.email, "user_type": "provider"}
 
 @router.post("/provider/login", response_model=Token)
 def provider_login(data: UserLogin, db: Session = Depends(get_db)):
-    provider = auth_services.authenticate_provider(db, data.email, data.password)
-    if not provider:
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
-    
-    access_token = create_access_token(data={"sub": provider.email, "user_type": "provider"})
-    return {"access_token": access_token, "token_type": "bearer"}
+    user = auth_services.authenticate_user(db, data.email, data.password, 'provider')
+    if not user:
+        raise HTTPException(status_code=401, detail="Incorrect email or password, or you do not have provider access")
+
+    access_token = create_access_token(data={"sub": user.email, "user_type": "provider"})
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "user": {"username": user.username, "email": user.email, "user_type": "provider"}
+    }
 
 # --- SuperAdmin Auth ---
 
 @router.post("/admin/signup", response_model=UserProfile)
 def admin_signup(data: UserRegister, db: Session = Depends(get_db)):
-    admin = auth_services.create_superadmin(db, data)
-    if not admin:
-        raise HTTPException(status_code=400, detail="Admin with this email already exists")
-    return {"username": admin.username, "email": admin.email, "user_type": "admin"}
+    user = auth_services.create_user(db, data, 'admin')
+    return {"username": user.username, "email": user.email, "user_type": "admin"}
 
 @router.post("/admin/login", response_model=Token)
 def admin_login(data: UserLogin, db: Session = Depends(get_db)):
-    admin = auth_services.authenticate_superadmin(db, data.email, data.password)
-    if not admin:
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
-    
-    access_token = create_access_token(data={"sub": admin.email, "user_type": "admin"})
-    return {"access_token": access_token, "token_type": "bearer"}
+    user = auth_services.authenticate_user(db, data.email, data.password, 'admin')
+    if not user:
+        raise HTTPException(status_code=401, detail="Incorrect email or password, or you do not have admin access")
+
+    access_token = create_access_token(data={"sub": user.email, "user_type": "admin"})
+    return {
+        "access_token": access_token, 
+        "token_type": "bearer",
+        "user": {"username": user.username, "email": user.email, "user_type": "admin"}
+    }
+
 
 @router.get("/verify")
 async def verify_token(token_data=Depends(get_current_user_data)):

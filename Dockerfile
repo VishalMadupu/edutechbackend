@@ -8,9 +8,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Fix Windows line endings (CRLF) in all scripts
-RUN apt-get update && apt-get install -y sed && \
-    find scripts/ -type f -exec sed -i 's/\r$//' {} + && \
+# Fix Windows line endings (CRLF) in all scripts and python files
+RUN apt-get update && apt-get install -y dos2unix && \
+    find . -type f -name "*.sh" -exec dos2unix {} + && \
+    find . -type f -name "*.py" -exec dos2unix {} + && \
     chmod +x scripts/entrypoint.sh
 
 EXPOSE 8000

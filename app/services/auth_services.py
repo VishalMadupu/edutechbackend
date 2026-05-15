@@ -1,99 +1,95 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from app.models.user_model import Client, ServiceProvider
+from app.models.user_model import User
 from app.auth.token_utils import hash_password, verify_password
 
-# --- Client Services ---
+# --- Unified User Services ---
+
+def create_user(db: Session, data, role: str):
+    """
+    Finds an existing user by email or creates a new one.
+    Updates the user to have the specified role flag.
+    """
+    user = db.query(User).filter(User.email == data.email).first()
+    
+    username = getattr(data, 'username', None)
+    if not username:
+        username = data.email.split('@')[0]
+
+    if not user:
+        # Create new user
+        user = User(
+            username=username,
+            email=data.email,
+            hashed_password=hash_password(data.password) if hasattr(data, 'password') and data.password else None,
+            is_active=True
+        )
+        db.add(user)
+    
+    # Enable the specific role
+    if role == 'client':
+        user.is_client = True
+    elif role == 'provider':
+        user.is_provider = True
+    elif role == 'admin':
+        user.is_admin = True
+    
+    db.commit()
+    db.refresh(user)
+    return user
+
+def authenticate_user(db: Session, email: str, password: str, required_role: str):
+    """
+    Authenticates a user and verifies they have the required role flag.
+    """
+    user = db.query(User).filter(User.email == email).first()
+    
+    if not user or not user.hashed_password:
+        return None
+    
+    if not verify_password(password, user.hashed_password):
+        return None
+        
+    # Check role flag
+    if required_role == 'client' and not user.is_client:
+        return None
+    if required_role == 'provider' and not user.is_provider:
+        return None
+    if required_role == 'admin' and not user.is_admin:
+        return None
+        
+    return user
+
+def get_user_by_email(db: Session, email: str):
+    return db.query(User).filter(User.email == email).first()
+
+# --- Legacy Compatibility Wrappers (for Routes) ---
+
 def create_client(db: Session, data):
-    existing_user = db.query(Client).filter(Client.email == data.email).first()
-    if existing_user:
-        return None
-    
-    username = data.username if data.username else data.email.split('@')[0]
-    
-    new_client = Client(
-        username=username,
-        email=data.email,
-        hashed_password=hash_password(data.password) if data.password else None
-    )
-    db.add(new_client)
-    db.commit()
-    db.refresh(new_client)
-    return new_client
+    return create_user(db, data, 'client')
 
-def authenticate_client(db: Session, username_or_email: str, password: str):
-    client = db.query(Client).filter(
-        or_(Client.username == username_or_email, Client.email == username_or_email)
-    ).first()
-    if not client or not client.hashed_password:
-        return None
-    if not verify_password(password, client.hashed_password):
-        return None
-    return client
-
-def get_client_by_email(db: Session, email: str):
-    return db.query(Client).filter(Client.email == email).first()
-
-# --- Provider Services ---
 def create_provider(db: Session, data):
-    existing_user = db.query(ServiceProvider).filter(ServiceProvider.email == data.email).first()
-    if existing_user:
-        return None
-    
-    username = data.username if data.username else data.email.split('@')[0]
-    
-    new_provider = ServiceProvider(
-        username=username,
-        email=data.email,
-        hashed_password=hash_password(data.password) if data.password else None
-    )
-    db.add(new_provider)
-    db.commit()
-    db.refresh(new_provider)
-    return new_provider
-
-def authenticate_provider(db: Session, username_or_email: str, password: str):
-    provider = db.query(ServiceProvider).filter(
-        or_(ServiceProvider.username == username_or_email, ServiceProvider.email == username_or_email)
-    ).first()
-    if not provider or not provider.hashed_password:
-        return None
-    if not verify_password(password, provider.hashed_password):
-        return None
-    return provider
-
-def get_provider_by_email(db: Session, email: str):
-    return db.query(ServiceProvider).filter(ServiceProvider.email == email).first()
-
-# --- SuperAdmin Services ---
-from app.models.user_model import SuperAdmin
+    return create_user(db, data, 'provider')
 
 def create_superadmin(db: Session, data):
-    existing_user = db.query(SuperAdmin).filter(SuperAdmin.email == data.email).first()
-    if existing_user:
-        return None
-    
-    username = data.username if data.username else data.email.split('@')[0]
-    
-    new_admin = SuperAdmin(
-        username=username,
-        email=data.email,
-        hashed_password=hash_password(data.password)
-    )
-    db.add(new_admin)
-    db.commit()
-    db.refresh(new_admin)
-    return new_admin
+    return create_user(db, data, 'admin')
 
-def authenticate_superadmin(db: Session, username_or_email: str, password: str):
-    admin = db.query(SuperAdmin).filter(
-        or_(SuperAdmin.username == username_or_email, SuperAdmin.email == username_or_email)
-    ).first()
-    if not admin:
-        return None
-    if not verify_password(password, admin.hashed_password):
-        return None
-    return admin
+def authenticate_client(db: Session, email: str, password: str):
+    return authenticate_user(db, email, password, 'client')
+
+def authenticate_provider(db: Session, email: str, password: str):
+    return authenticate_user(db, email, password, 'provider')
+
+def authenticate_superadmin(db: Session, email: str, password: str):
+    return authenticate_user(db, email, password, 'admin')
+
+def get_client_by_email(db: Session, email: str):
+    user = get_user_by_email(db, email)
+    return user if user and user.is_client else None
+
+def get_provider_by_email(db: Session, email: str):
+    user = get_user_by_email(db, email)
+    return user if user and user.is_provider else None
 
 def update_password(db: Session, user, new_password: str):
     user.hashed_password = hash_password(new_password)

@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database.database import get_db
-from app.auth.oauth import get_current_user_data, get_current_client, get_current_provider
+from app.auth.oauth import get_current_user_data
 from app.schemas.auth_schema import UserProfile, PasswordChange
-from app.models.user_model import Client, ServiceProvider, SuperAdmin
+from app.models.user_model import User
 from app.auth.token_utils import verify_password
 from app.services import auth_services
 
@@ -15,14 +15,7 @@ async def change_password(
     token_data = Depends(get_current_user_data),
     db: Session = Depends(get_db)
 ):
-    if token_data.user_type == "client":
-        user = db.query(Client).filter(Client.email == token_data.email).first()
-    elif token_data.user_type == "provider":
-        user = db.query(ServiceProvider).filter(ServiceProvider.email == token_data.email).first()
-    elif token_data.user_type == "admin":
-        user = db.query(SuperAdmin).filter(SuperAdmin.email == token_data.email).first()
-    else:
-        raise HTTPException(status_code=400, detail="Invalid user type")
+    user = db.query(User).filter(User.email == token_data.email).first()
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -42,10 +35,7 @@ async def get_profile(
     token_data = Depends(get_current_user_data),
     db: Session = Depends(get_db)
 ):
-    if token_data.user_type == "client":
-        user = db.query(Client).filter(Client.email == token_data.email).first()
-    else:
-        user = db.query(ServiceProvider).filter(ServiceProvider.email == token_data.email).first()
+    user = db.query(User).filter(User.email == token_data.email).first()
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -53,27 +43,38 @@ async def get_profile(
     return {
         "username": user.username,
         "email": user.email,
-        "user_type": token_data.user_type
+        "user_type": token_data.user_type,
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "phone_number": user.phone_number,
+        "bio": user.bio,
+        "hourly_rate": user.hourly_rate,
+        "specialization": user.specialization
     }
 
 @router.put("/profile/update")
 async def update_profile(
-    data: dict, # Simplified for now
+    data: dict,
     token_data = Depends(get_current_user_data),
     db: Session = Depends(get_db)
 ):
-    if token_data.user_type == "client":
-        user = db.query(Client).filter(Client.email == token_data.email).first()
-    else:
-        user = db.query(ServiceProvider).filter(ServiceProvider.email == token_data.email).first()
+    user = db.query(User).filter(User.email == token_data.email).first()
     
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
     
-    if "username" in data:
-        user.username = data["username"]
+    # Update allowed fields
+    allowed_fields = [
+        "username", "first_name", "last_name", "phone_number", 
+        "bio", "hourly_rate", "specialization"
+    ]
+    
+    for field in allowed_fields:
+        if field in data:
+            setattr(user, field, data[field])
     
     db.commit()
+    db.refresh(user)
     return {"message": "Profile updated successfully"}
 
 @router.get("/settings")

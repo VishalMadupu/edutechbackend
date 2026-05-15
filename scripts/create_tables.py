@@ -6,7 +6,7 @@ import time
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from app.database.database import engine, Base, SessionLocal
-from app.models.user_model import SuperAdmin
+from app.models.user_model import User, Project
 from app.auth.token_utils import hash_password
 
 def create_tables():
@@ -32,19 +32,23 @@ def create_tables():
 
     print("Creating database tables...")
     try:
+        # We need to make sure models are registered before create_all
+        # Already imported User and Project above
         Base.metadata.create_all(bind=engine)
         print("Tables created successfully.")
         
         # Seed initial admin if not exists
         db = SessionLocal()
         try:
-            admin_exists = db.query(SuperAdmin).first()
+            admin_exists = db.query(User).filter(User.is_admin == True).first()
             if not admin_exists:
                 print("Seeding initial SuperAdmin...")
-                initial_admin = SuperAdmin(
+                initial_admin = User(
                     username="admin",
                     email="admin@edtech.com",
-                    hashed_password=hash_password("admin123")
+                    hashed_password=hash_password("admin123"),
+                    is_admin=True,
+                    is_active=True
                 )
                 db.add(initial_admin)
                 db.commit()

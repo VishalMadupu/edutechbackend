@@ -155,7 +155,7 @@ docker compose --env-file env/.env.dev up --build
 ### cmd to start server in prod mode
 
 ```bash
-docker compose --env-file env/.env.prod up -d --build
+docker compose --env-file env/.env.prod up --build -d
 ```
 
 <!-- # Production Environment Variables

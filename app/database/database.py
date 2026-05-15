@@ -6,10 +6,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Use environment variable if available, otherwise fallback to local
-Database_URL = os.getenv("DATABASE_URL", "mysql+pymysql://root:password@localhost/ats")
+# Use environment variable if available, otherwise fallback to local SQLite
+Database_URL = os.getenv("DATABASE_URL", "sqlite:///./edtech.db")
 
-engine = create_engine(Database_URL, pool_pre_ping=True)
+if Database_URL.startswith("sqlite"):
+    engine = create_engine(Database_URL, connect_args={"check_same_thread": False})
+else:
+    engine = create_engine(Database_URL, pool_pre_ping=True)
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

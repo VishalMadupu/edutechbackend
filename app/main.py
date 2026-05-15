@@ -5,6 +5,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from dotenv import load_dotenv
 
 from app.database.database import engine, Base
+from app.models import user_model # Import models to register them with Base
 from app.routes import auth_routes, profile_routes, dashboard_routes, platform_routes, admin_routes
 from app.auth.google_oauth import oauth
 
@@ -12,7 +13,9 @@ load_dotenv()
 
 # Create database tables
 try:
+    print(f"Registered tables in metadata: {Base.metadata.tables.keys()}")
     Base.metadata.create_all(bind=engine)
+    print("Database tables created successfully.")
 except Exception as e:
     print(f"Warning: Could not connect to database for table creation: {e}")
 
