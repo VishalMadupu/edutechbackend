@@ -25,6 +25,8 @@ app = FastAPI(title="EdTech Platform API")
 origins = [
     "http://localhost:3000",
     "http://localhost:8000",
+    "https://edu-ten-mu.vercel.app",
+    "https://edu-ten-mu.vercel.app/",
 ]
 
 app.add_middleware(
