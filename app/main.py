@@ -38,9 +38,15 @@ app.add_middleware(
 )
 
 # SessionMiddleware is required for Authlib OAuth
+# In production (HTTPS), we need same_site="none" and https_only=True for cross-domain cookies
+is_prod = os.getenv("FRONTEND_URL", "").startswith("https")
+
 app.add_middleware(
     SessionMiddleware, 
-    secret_key=os.getenv("SECRET_KEY", "your-secret-key")
+    secret_key=os.getenv("SECRET_KEY", "your-secret-key"),
+    same_site="none" if is_prod else "lax",
+    https_only=is_prod,
+    max_age=3600 # 1 hour session
 )
 
 # Include Routers
