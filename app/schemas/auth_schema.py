@@ -2,12 +2,12 @@ from pydantic import BaseModel, EmailStr
 from typing import Optional
 
 class UserRegister(BaseModel):
-    username: str
     email: EmailStr
     password: str
+    username: Optional[str] = None
 
 class UserLogin(BaseModel):
-    username: str
+    email: EmailStr # Changed from username to email to match common login patterns
     password: str
 
 class Token(BaseModel):

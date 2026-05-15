@@ -8,8 +8,11 @@ def create_client(db: Session, data):
     existing_user = db.query(Client).filter(Client.email == data.email).first()
     if existing_user:
         return None
+    
+    username = data.username if data.username else data.email.split('@')[0]
+    
     new_client = Client(
-        username=data.username,
+        username=username,
         email=data.email,
         hashed_password=hash_password(data.password) if data.password else None
     )
@@ -36,8 +39,11 @@ def create_provider(db: Session, data):
     existing_user = db.query(ServiceProvider).filter(ServiceProvider.email == data.email).first()
     if existing_user:
         return None
+    
+    username = data.username if data.username else data.email.split('@')[0]
+    
     new_provider = ServiceProvider(
-        username=data.username,
+        username=username,
         email=data.email,
         hashed_password=hash_password(data.password) if data.password else None
     )
@@ -66,8 +72,11 @@ def create_superadmin(db: Session, data):
     existing_user = db.query(SuperAdmin).filter(SuperAdmin.email == data.email).first()
     if existing_user:
         return None
+    
+    username = data.username if data.username else data.email.split('@')[0]
+    
     new_admin = SuperAdmin(
-        username=data.username,
+        username=username,
         email=data.email,
         hashed_password=hash_password(data.password)
     )
