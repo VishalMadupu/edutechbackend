@@ -1,0 +1,44 @@
+version: '3.9'
+
+services:
+
+  backend:
+    build: .
+    container_name: edtech_backend
+    env_file:
+      - env/.env.prod
+    ports:
+      - "${APP_PORT}:8000"
+
+    depends_on:
+      - mysql
+
+    environment:
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER}:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_DATABASE}
+      SECRET_KEY: ${SECRET_KEY}
+      ALGORITHM: ${ALGORITHM}
+
+    volumes:
+      - .:/app
+
+  mysql:
+    image: mysql:8.0
+    container_name: edtech_mysql
+    env_file:
+      - env/.env.prod
+    restart: always
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+    ports:
+      - "${MYSQL_PORT}:3306"
+
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+volumes:
+  mysql_data:
