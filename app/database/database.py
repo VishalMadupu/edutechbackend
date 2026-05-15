@@ -9,6 +9,12 @@ load_dotenv()
 # Use environment variable if available, otherwise fallback to local SQLite
 Database_URL = os.getenv("DATABASE_URL", "sqlite:///./edtech.db")
 
+# Fix for Render: SQLAlchemy requires 'postgresql://' but Render provides 'postgres://'
+if Database_URL.startswith("postgres://"):
+    Database_URL = Database_URL.replace("postgres://", "postgresql://", 1)
+
+print(f"Connecting to database: {Database_URL.split('@')[-1]}") # Log host/db only for safety
+
 if Database_URL.startswith("sqlite"):
     engine = create_engine(Database_URL, connect_args={"check_same_thread": False})
 else:
