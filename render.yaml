@@ -7,6 +7,8 @@ services:
     region: ohio
     healthCheckPath: /
     envVars:
+      - key: ENV
+        value: production
       - key: DATABASE_URL
         fromDatabase:
           name: edtech-db
@@ -22,7 +24,7 @@ services:
       - key: GOOGLE_CLIENT_SECRET
         sync: false
       - key: GOOGLE_REDIRECT_URI
-        value: https://edtech-backend.onrender.com/api/auth/callback
+        value: https://edutechbackend-nmz9.onrender.com/api/auth/callback
 
 # Managed PostgreSQL Database
 databases:

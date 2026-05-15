@@ -1,17 +1,26 @@
 import os
+from dotenv import load_dotenv
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-from dotenv import load_dotenv
 
 from app.database.database import engine, Base
-from app.models import user_model # Import models to register them with Base
-from app.routes import auth_routes, profile_routes, dashboard_routes, platform_routes, admin_routes
-from app.auth.google_oauth import oauth
+from app.models import user_model
+from app.routes import (
+    auth_routes,
+    profile_routes,
+    dashboard_routes,
+    platform_routes,
+    admin_routes
+)
 
 load_dotenv()
 
-# Create database tables
+# --------------------------------------------------
+# DATABASE
+# --------------------------------------------------
+
 try:
     print(f"Registered tables in metadata: {Base.metadata.tables.keys()}")
     Base.metadata.create_all(bind=engine)
@@ -19,9 +28,26 @@ try:
 except Exception as e:
     print(f"Warning: Could not connect to database for table creation: {e}")
 
+# --------------------------------------------------
+# APP
+# --------------------------------------------------
+
 app = FastAPI(title="EdTech Platform API")
 
-# Middleware
+# --------------------------------------------------
+# ENVIRONMENT
+# --------------------------------------------------
+
+ENV = os.getenv("ENV", "development")
+IS_PROD = ENV == "production"
+
+print(f"Running Environment: {ENV}")
+print(f"Production Mode: {IS_PROD}")
+
+# --------------------------------------------------
+# CORS
+# --------------------------------------------------
+
 origins = [
     "http://localhost:3000",
     "http://localhost:8000",
@@ -29,19 +55,10 @@ origins = [
     "https://edu-ten-mu.vercel.app/",
 ]
 
-# SessionMiddleware is required for Authlib OAuth
-# In production (HTTPS), we need same_site="none" and https_only=True for cross-domain cookies
-is_prod = os.getenv("FRONTEND_URL", "").startswith("https")
+# IMPORTANT:
+# CORS should be added BEFORE SessionMiddleware
+# for proper cross-site cookie handling
 
-app.add_middleware(
-    SessionMiddleware, 
-    secret_key=os.getenv("SECRET_KEY", "your-secret-key"),
-    same_site="none" if is_prod else "lax",
-    https_only=is_prod,
-    max_age=3600 # 1 hour session
-)
-
-# CORSMiddleware should be outside SessionMiddleware to correctly handle cross-site headers
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -50,13 +67,64 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include Routers
-app.include_router(auth_routes.router, prefix="/api/auth", tags=["Authentication"])
-app.include_router(profile_routes.router, prefix="/api/users", tags=["Users/Profiles"])
-app.include_router(dashboard_routes.router, prefix="/api/dashboard", tags=["Dashboard"])
-app.include_router(platform_routes.router, prefix="/api", tags=["Platform"]) # Covers /projects, /services, /messages
-app.include_router(admin_routes.router, prefix="/api/admin", tags=["SuperAdmin"])
+# --------------------------------------------------
+# SESSION MIDDLEWARE
+# --------------------------------------------------
+
+# Required for Authlib OAuth state/session handling
+# Cross-domain OAuth requires:
+# same_site="none"
+# https_only=True
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=os.getenv("SECRET_KEY", "super-secret-key"),
+    same_site="none" if IS_PROD else "lax",
+    https_only=IS_PROD,
+    max_age=3600,
+)
+
+# --------------------------------------------------
+# ROUTES
+# --------------------------------------------------
+
+app.include_router(
+    auth_routes.router,
+    prefix="/api/auth",
+    tags=["Authentication"]
+)
+
+app.include_router(
+    profile_routes.router,
+    prefix="/api/users",
+    tags=["Users/Profiles"]
+)
+
+app.include_router(
+    dashboard_routes.router,
+    prefix="/api/dashboard",
+    tags=["Dashboard"]
+)
+
+app.include_router(
+    platform_routes.router,
+    prefix="/api",
+    tags=["Platform"]
+)
+
+app.include_router(
+    admin_routes.router,
+    prefix="/api/admin",
+    tags=["SuperAdmin"]
+)
+
+# --------------------------------------------------
+# ROOT
+# --------------------------------------------------
 
 @app.get("/")
 def root():
-    return {"message": "Welcome to the EdTech Platform API", "docs": "/docs"}
+    return {
+        "message": "Welcome to the EdTech Platform API",
+        "docs": "/docs"
+    }
