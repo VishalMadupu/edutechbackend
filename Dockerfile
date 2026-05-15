@@ -25,3 +25,5 @@ EXPOSE 8000
 
 # Use 'sh' to run the script to avoid shebang line ending issues
 ENTRYPOINT ["sh", "scripts/entrypoint.sh"]
+
+

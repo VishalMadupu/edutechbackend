@@ -43,11 +43,29 @@ async def client_oauth(request: Request):
     redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or request.url_for('auth_callback')
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
+@router.get("/client/oauth-url")
+async def get_client_oauth_url(request: Request):
+    request.session['oauth_role'] = 'client'
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or request.url_for('auth_callback')
+    # Use authorize_redirect but catch the location if we wanted to be hacky, 
+    # but create_authorization_url is better.
+    # For Starlette/FastAPI, authorize_redirect returns a response.
+    # We can just extract the location.
+    response = await oauth.google.authorize_redirect(request, redirect_uri)
+    return {"url": response.headers.get("Location")}
+
 @router.get("/provider/oauth")
 async def provider_oauth(request: Request):
     request.session['oauth_role'] = 'provider'
     redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or request.url_for('auth_callback')
     return await oauth.google.authorize_redirect(request, redirect_uri)
+
+@router.get("/provider/oauth-url")
+async def get_provider_oauth_url(request: Request):
+    request.session['oauth_role'] = 'provider'
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or request.url_for('auth_callback')
+    response = await oauth.google.authorize_redirect(request, redirect_uri)
+    return {"url": response.headers.get("Location")}
 
 @router.get("/callback", name='auth_callback')
 async def auth_callback(request: Request, db: Session = Depends(get_db)):
@@ -147,5 +165,19 @@ async def verify_token(token_data=Depends(get_current_user_data)):
 
 @router.post("/client/logout")
 @router.post("/provider/logout")
-def logout():
+def logout(request: Request):
+    response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
+    # Clear the session cookie used by SessionMiddleware (default name is 'session')
+    response.delete_cookie(key="session")
+    # Also return a JSON response if preferred for SPA logout, 
+    # but here we'll just return the message and clear cookies.
     return {"message": "Successfully logged out"}
+
+@router.get("/debug-oauth")
+async def debug_oauth():
+    client_id = os.getenv("GOOGLE_CLIENT_ID", "NOT FOUND")
+    return {
+        "google_client_id_prefix": client_id[:12] if client_id != "NOT FOUND" else "N/A",
+        "google_redirect_uri": os.getenv("GOOGLE_REDIRECT_URI", "NOT FOUND"),
+        "frontend_url": FRONTEND_URL
+    }
