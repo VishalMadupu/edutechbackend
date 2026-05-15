@@ -47,37 +47,19 @@ async def client_oauth(request: Request):
 async def get_client_oauth_url(request: Request):
     request.session['oauth_role'] = 'client'
     redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or request.url_for('auth_callback')
-
-    # Generate the redirect response to get the URL and the session cookie
+    
+    # Use create_authorization_url which updates the session and returns the URL
+    # We use auth_response internally just to get the URL
     auth_response = await oauth.google.authorize_redirect(request, redirect_uri)
-
-    # We return JSON, but we must manually propagate the session cookie
-    # which is stored in the auth_response (from SessionMiddleware)
-    from fastapi.responses import JSONResponse
-    response = JSONResponse(content={"url": auth_response.headers.get("Location")})
-
-    # Copy all 'set-cookie' headers from the authlib response to our JSON response
-    for header, value in auth_response.raw_headers:
-        if header.decode().lower() == 'set-cookie':
-            response.headers.append('set-cookie', value.decode())
-
-    return response
+    return {"url": auth_response.headers.get("Location")}
 
 @router.get("/provider/oauth-url")
 async def get_provider_oauth_url(request: Request):
     request.session['oauth_role'] = 'provider'
     redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or request.url_for('auth_callback')
-
+    
     auth_response = await oauth.google.authorize_redirect(request, redirect_uri)
-
-    from fastapi.responses import JSONResponse
-    response = JSONResponse(content={"url": auth_response.headers.get("Location")})
-
-    for header, value in auth_response.raw_headers:
-        if header.decode().lower() == 'set-cookie':
-            response.headers.append('set-cookie', value.decode())
-
-    return response
+    return {"url": auth_response.headers.get("Location")}
 
 @router.get("/callback", name='auth_callback')
 async def auth_callback(request: Request, db: Session = Depends(get_db)):

@@ -29,14 +29,6 @@ origins = [
     "https://edu-ten-mu.vercel.app/",
 ]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # SessionMiddleware is required for Authlib OAuth
 # In production (HTTPS), we need same_site="none" and https_only=True for cross-domain cookies
 is_prod = os.getenv("FRONTEND_URL", "").startswith("https")
@@ -47,6 +39,15 @@ app.add_middleware(
     same_site="none" if is_prod else "lax",
     https_only=is_prod,
     max_age=3600 # 1 hour session
+)
+
+# CORSMiddleware should be outside SessionMiddleware to correctly handle cross-site headers
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Include Routers
