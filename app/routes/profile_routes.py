@@ -41,6 +41,7 @@ async def get_profile(
         raise HTTPException(status_code=404, detail="User not found")
     
     return {
+        "id": user.id,
         "username": user.username,
         "email": user.email,
         "user_type": token_data.user_type,
@@ -48,6 +49,7 @@ async def get_profile(
         "last_name": user.last_name,
         "phone_number": user.phone_number,
         "bio": user.bio,
+        "profile_image": user.profile_image,
         "hourly_rate": user.hourly_rate,
         "specialization": user.specialization
     }
@@ -66,7 +68,7 @@ async def update_profile(
     # Update allowed fields
     allowed_fields = [
         "username", "first_name", "last_name", "phone_number", 
-        "bio", "hourly_rate", "specialization"
+        "bio", "hourly_rate", "specialization", "profile_image"
     ]
     
     for field in allowed_fields:

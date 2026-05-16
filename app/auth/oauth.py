@@ -53,8 +53,12 @@ async def get_current_provider(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     if not user.is_provider:
-        raise HTTPException(status_code=403, detail="Not authorized as provider")
+        raise HTTPException(status_code=403, detail="Not authorized as provider/tutor")
     return user
+
+# Aliases for terminology change
+get_current_student = get_current_client
+get_current_tutor = get_current_provider
 
 async def get_current_superadmin(
     token_data: Annotated[TokenData, Depends(get_current_user_data)],

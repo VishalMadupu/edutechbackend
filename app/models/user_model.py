@@ -29,6 +29,9 @@ class User(Base):
 
     # Relationships
     projects = relationship("Project", back_populates="client")
+    courses = relationship("Course", back_populates="teacher")
+    enrollments = relationship("Enrollment", back_populates="student")
+    progress_records = relationship("Progress", back_populates="student")
 
 class Project(Base):
     __tablename__ = 'projects'

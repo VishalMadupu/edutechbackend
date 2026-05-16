@@ -1,41 +1,41 @@
 from fastapi import APIRouter, Depends
-from app.auth.oauth import get_current_client, get_current_provider
+from app.auth.oauth import get_current_student, get_current_tutor
 from app.models.user_model import User
 
 router = APIRouter()
 
-@router.get("/client/stats")
-async def get_client_stats(client: User = Depends(get_current_client)):
+@router.get("/student/stats")
+async def get_student_stats(student: User = Depends(get_current_student)):
     return {
-        "user": client.username,
+        "user": student.username,
         "stats": {
-            "total_projects": 0,
-            "active_services": 0,
-            "messages_unread": 0
+            "total_courses": 0,
+            "completed_courses": 0,
+            "certificates": 0
         }
     }
 
-@router.get("/client/activity")
-async def get_client_activity(client: User = Depends(get_current_client)):
+@router.get("/student/activity")
+async def get_student_activity(student: User = Depends(get_current_student)):
     return {
-        "user": client.username,
+        "user": student.username,
         "activities": []
     }
 
-@router.get("/provider/stats")
-async def get_provider_stats(provider: User = Depends(get_current_provider)):
+@router.get("/tutor/stats")
+async def get_tutor_stats(tutor: User = Depends(get_current_tutor)):
     return {
-        "user": provider.username,
+        "user": tutor.username,
         "stats": {
-            "total_earnings": 0,
-            "active_orders": 0,
+            "total_students": 0,
+            "active_courses": 0,
             "rating": 5.0
         }
     }
 
-@router.get("/provider/activity")
-async def get_provider_activity(provider: User = Depends(get_current_provider)):
+@router.get("/tutor/activity")
+async def get_tutor_activity(tutor: User = Depends(get_current_tutor)):
     return {
-        "user": provider.username,
+        "user": tutor.username,
         "activities": []
     }

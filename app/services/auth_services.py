@@ -27,9 +27,9 @@ def create_user(db: Session, data, role: str):
         db.add(user)
     
     # Enable the specific role
-    if role == 'client':
+    if role in ['client', 'student']:
         user.is_client = True
-    elif role == 'provider':
+    elif role in ['provider', 'tutor']:
         user.is_provider = True
     elif role == 'admin':
         user.is_admin = True
@@ -51,9 +51,9 @@ def authenticate_user(db: Session, email: str, password: str, required_role: str
         return None
         
     # Check role flag
-    if required_role == 'client' and not user.is_client:
+    if required_role in ['client', 'student'] and not user.is_client:
         return None
-    if required_role == 'provider' and not user.is_provider:
+    if required_role in ['provider', 'tutor'] and not user.is_provider:
         return None
     if required_role == 'admin' and not user.is_admin:
         return None

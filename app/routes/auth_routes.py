@@ -17,47 +17,71 @@ router = APIRouter()
 
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
-# --- Client Auth ---
+# --- Student Auth ---
 
-@router.post("/client/signup", response_model=UserProfile)
-def client_signup(data: UserRegister, db: Session = Depends(get_db)):
-    user = auth_services.create_user(db, data, 'client')
-    return {"username": user.username, "email": user.email, "user_type": "client"}
+@router.post("/student/signup", response_model=UserProfile)
+def student_signup(data: UserRegister, db: Session = Depends(get_db)):
+    user = auth_services.create_user(db, data, 'student')
+    return {"username": user.username, "email": user.email, "user_type": "student"}
 
-@router.post("/client/login", response_model=Token)
-def client_login(data: UserLogin, db: Session = Depends(get_db)):
-    user = auth_services.authenticate_user(db, data.email, data.password, 'client')
+@router.post("/student/login", response_model=Token)
+def student_login(data: UserLogin, db: Session = Depends(get_db)):
+    # Check if user exists
+    user = auth_services.get_user_by_email(db, data.email)
     if not user:
-        raise HTTPException(status_code=401, detail="Incorrect email or password, or you do not have client access")
+        raise HTTPException(status_code=404, detail="Account not found. Please sign up first.")
     
-    access_token = create_access_token(data={"sub": user.email, "user_type": "client"})
+    # Check if user has student role (is_client)
+    if not user.is_client:
+        raise HTTPException(status_code=403, detail="This account is not registered as a learner. Please sign up as a student.")
+
+    # Check if user has a password (might be OAuth-only)
+    if not user.hashed_password:
+        raise HTTPException(status_code=400, detail="This account uses Google Login. Please use the Google button.")
+
+    # Verify password
+    from app.auth.token_utils import verify_password
+    if not verify_password(data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect password. Please try again.")
+    
+    access_token = create_access_token(data={"sub": user.email, "user_type": "student"})
     return {
         "access_token": access_token, 
         "token_type": "bearer",
-        "user": {"username": user.username, "email": user.email, "user_type": "client"}
+        "user": {"username": user.username, "email": user.email, "user_type": "student"}
     }
 
-@router.get("/client/oauth")
-async def client_oauth(request: Request):
-    request.session['oauth_role'] = 'client'
+@router.get("/student/oauth")
+async def student_oauth(request: Request, mode: str = "login"):
+    request.session['oauth_role'] = 'student'
+    request.session['oauth_mode'] = mode
     redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or request.url_for('auth_callback')
-    return await oauth.google.authorize_redirect(request, redirect_uri)
+    response = await oauth.google.authorize_redirect(request, redirect_uri)
+    # Set a temporary cookie as a backup for the mode
+    response.set_cookie(key="oauth_mode", value=mode, max_age=600)
+    return response
 
-@router.get("/client/oauth-url")
-async def get_client_oauth_url(request: Request):
-    request.session['oauth_role'] = 'client'
+@router.get("/tutor/oauth")
+async def tutor_oauth(request: Request, mode: str = "login"):
+    request.session['oauth_role'] = 'tutor'
+    request.session['oauth_mode'] = mode
     redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or request.url_for('auth_callback')
-    
-    # Use create_authorization_url which updates the session and returns the URL
-    # We use auth_response internally just to get the URL
+    response = await oauth.google.authorize_redirect(request, redirect_uri)
+    # Set a temporary cookie as a backup for the mode
+    response.set_cookie(key="oauth_mode", value=mode, max_age=600)
+    return response
+
+@router.get("/student/oauth-url")
+async def get_student_oauth_url(request: Request):
+    request.session['oauth_role'] = 'student'
+    redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or request.url_for('auth_callback')
     auth_response = await oauth.google.authorize_redirect(request, redirect_uri)
     return {"url": auth_response.headers.get("Location")}
 
-@router.get("/provider/oauth-url")
-async def get_provider_oauth_url(request: Request):
-    request.session['oauth_role'] = 'provider'
+@router.get("/tutor/oauth-url")
+async def get_tutor_oauth_url(request: Request):
+    request.session['oauth_role'] = 'tutor'
     redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or request.url_for('auth_callback')
-    
     auth_response = await oauth.google.authorize_redirect(request, redirect_uri)
     return {"url": auth_response.headers.get("Location")}
 
@@ -78,58 +102,97 @@ async def auth_callback(request: Request, db: Session = Depends(get_db)):
     username = user_info.get('name', email.split('@')[0])
     google_id = user_info['sub']
     
-    # Retrieve role from session
-    role = request.session.get('oauth_role', 'client')
+    # Retrieve role and mode from session, with cookie fallback
+    role = request.session.get('oauth_role', 'student')
+    mode = request.session.get('oauth_mode') or request.cookies.get('oauth_mode', 'login')
+    is_new_user = False
     
     try:
-        # Find or create user and enable the role
+        # Find user
         user = db.query(User).filter(User.email == email).first()
+        
         if not user:
-            user = User(username=username, email=email, google_id=google_id, is_active=True)
-            db.add(user)
-        
-        # Apply the role flag
-        if role == 'client':
-            user.is_client = True
-        elif role == 'provider':
-            user.is_provider = True
-        
+            if mode == 'signup':
+                # Create user if in signup mode
+                user = User(username=username, email=email, google_id=google_id, is_active=True)
+                db.add(user)
+                is_new_user = True
+            else:
+                # If user not found and not in signup mode, redirect to login with error
+                error_msg = "Account not found. Please sign up with this email first."
+                if role == 'tutor':
+                    error_msg = "Tutor account not found. Please apply first."
+                
+                from urllib.parse import quote
+                return RedirectResponse(url=f"{FRONTEND_URL}/{role}/login?error={quote(error_msg)}")
+
+        # Enforce RBAC logic
+        if mode == 'signup':
+            # Enable the requested role flag during signup
+            if role == 'student':
+                user.is_client = True
+            elif role == 'tutor':
+                user.is_provider = True
+        else:
+            # During LOGIN mode, we MUST verify they already have the role
+            if role == 'student' and not user.is_client:
+                error_msg = "Account exists, but you are not registered as a learner. Please sign up as a student first."
+                from urllib.parse import quote
+                return RedirectResponse(url=f"{FRONTEND_URL}/student/login?error={quote(error_msg)}")
+            
+            if role == 'tutor' and not user.is_provider:
+                error_msg = "You are not registered as a tutor. Please apply through the signup page."
+                from urllib.parse import quote
+                return RedirectResponse(url=f"{FRONTEND_URL}/tutor/login?error={quote(error_msg)}")
+
         # Update google_id if not set
         if not user.google_id:
             user.google_id = google_id
             
         db.commit()
         db.refresh(user)
-    except IntegrityError:
-        db.rollback()
-        user = db.query(User).filter(User.email == email).first()
-        if not user:
-            raise HTTPException(status_code=400, detail="Database integrity error during user creation")
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     
     access_token = create_access_token(data={"sub": user.email, "user_type": role})
-    return RedirectResponse(url=f"{FRONTEND_URL}/auth/callback?token={access_token}&role={role}")
+    response = RedirectResponse(url=f"{FRONTEND_URL}/auth/callback?token={access_token}&role={role}&new_user={str(is_new_user).lower()}")
+    # Clean up the backup cookie
+    response.delete_cookie(key="oauth_mode")
+    return response
 
-# --- Provider Auth ---
+# --- Tutor Auth ---
 
-@router.post("/provider/signup", response_model=UserProfile)
-def provider_signup(data: UserRegister, db: Session = Depends(get_db)):
-    user = auth_services.create_user(db, data, 'provider')
-    return {"username": user.username, "email": user.email, "user_type": "provider"}
+@router.post("/tutor/signup", response_model=UserProfile)
+def tutor_signup(data: UserRegister, db: Session = Depends(get_db)):
+    user = auth_services.create_user(db, data, 'tutor')
+    return {"username": user.username, "email": user.email, "user_type": "tutor"}
 
-@router.post("/provider/login", response_model=Token)
-def provider_login(data: UserLogin, db: Session = Depends(get_db)):
-    user = auth_services.authenticate_user(db, data.email, data.password, 'provider')
+@router.post("/tutor/login", response_model=Token)
+def tutor_login(data: UserLogin, db: Session = Depends(get_db)):
+    # Check if user exists
+    user = auth_services.get_user_by_email(db, data.email)
     if not user:
-        raise HTTPException(status_code=401, detail="Incorrect email or password, or you do not have provider access")
+        raise HTTPException(status_code=404, detail="Account not found. Please apply to become a tutor.")
+    
+    # Check if user has tutor role (is_provider)
+    if not user.is_provider:
+        raise HTTPException(status_code=403, detail="This account is not registered as a tutor. Please register as a teacher.")
 
-    access_token = create_access_token(data={"sub": user.email, "user_type": "provider"})
+    # Check if user has a password (might be OAuth-only)
+    if not user.hashed_password:
+        raise HTTPException(status_code=400, detail="This account uses Google Login. Please use the Google button.")
+
+    # Verify password
+    from app.auth.token_utils import verify_password
+    if not verify_password(data.password, user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect password. Please try again.")
+
+    access_token = create_access_token(data={"sub": user.email, "user_type": "tutor"})
     return {
         "access_token": access_token, 
         "token_type": "bearer",
-        "user": {"username": user.username, "email": user.email, "user_type": "provider"}
+        "user": {"username": user.username, "email": user.email, "user_type": "tutor"}
     }
 
 # --- SuperAdmin Auth ---
@@ -157,14 +220,11 @@ def admin_login(data: UserLogin, db: Session = Depends(get_db)):
 async def verify_token(token_data=Depends(get_current_user_data)):
     return {"status": "valid", "user_type": token_data.user_type, "email": token_data.email}
 
-@router.post("/client/logout")
-@router.post("/provider/logout")
+@router.post("/student/logout")
+@router.post("/tutor/logout")
+@router.post("/admin/logout")
 def logout(request: Request):
-    response = RedirectResponse(url="/", status_code=status.HTTP_302_FOUND)
-    # Clear the session cookie used by SessionMiddleware (default name is 'session')
-    response.delete_cookie(key="session")
-    # Also return a JSON response if preferred for SPA logout, 
-    # but here we'll just return the message and clear cookies.
+    request.session.clear()
     return {"message": "Successfully logged out"}
 
 @router.get("/debug-oauth")

@@ -6,13 +6,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.database.database import engine, Base
-from app.models import user_model
+from app import models # Import models package to register all models
 from app.routes import (
     auth_routes,
     profile_routes,
     dashboard_routes,
     platform_routes,
-    admin_routes
+    admin_routes,
+    course_routes,
+    video_routes,
+    enrollment_routes,
+    progress_routes,
+    tutor_routes
 )
 
 load_dotenv()
@@ -116,6 +121,36 @@ app.include_router(
     admin_routes.router,
     prefix="/api/admin",
     tags=["SuperAdmin"]
+)
+
+app.include_router(
+    course_routes.router,
+    prefix="/api/courses",
+    tags=["Courses"]
+)
+
+app.include_router(
+    video_routes.router,
+    prefix="/api/videos",
+    tags=["Videos"]
+)
+
+app.include_router(
+    enrollment_routes.router,
+    prefix="/api/enrollments",
+    tags=["Enrollments"]
+)
+
+app.include_router(
+    progress_routes.router,
+    prefix="/api/progress",
+    tags=["Progress"]
+)
+
+app.include_router(
+    tutor_routes.router,
+    prefix="/api/tutors",
+    tags=["Tutors"]
 )
 
 # --------------------------------------------------

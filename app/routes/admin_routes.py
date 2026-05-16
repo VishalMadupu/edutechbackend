@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.database.database import get_db
 from app.auth.oauth import get_current_superadmin
-from app.models.user_model import User, Project
+from app.models.user_model import User
+from app.models.edtech_models import Course
 
 router = APIRouter()
 
@@ -11,39 +12,37 @@ async def get_platform_stats(
     admin: User = Depends(get_current_superadmin),
     db: Session = Depends(get_db)
 ):
-    total_clients = db.query(User).filter(User.is_client == True).count()
-    total_providers = db.query(User).filter(User.is_provider == True).count()
-    total_projects = db.query(Project).count()
+    total_students = db.query(User).filter(User.is_client == True).count()
+    total_tutors = db.query(User).filter(User.is_provider == True).count()
+    total_courses = db.query(Course).count()
     
     return {
-        "total_clients": total_clients,
-        "total_providers": total_providers,
-        "total_projects": total_projects,
+        "total_clients": total_students,
+        "total_providers": total_tutors,
+        "total_projects": total_courses,
         "active_admin": admin.username
     }
 
-@router.get("/clients")
-async def list_all_clients(
+@router.get("/students")
+async def list_all_students(
     admin: User = Depends(get_current_superadmin),
     db: Session = Depends(get_db)
 ):
-    # Fetch all users where is_client is True with detailed profile
-    clients = db.query(User).filter(User.is_client == True).all()
-    return clients
+    students = db.query(User).filter(User.is_client == True).all()
+    return students
 
-@router.get("/providers")
-async def list_all_providers(
+@router.get("/tutors")
+async def list_all_tutors(
     admin: User = Depends(get_current_superadmin),
     db: Session = Depends(get_db)
 ):
-    # Fetch all users where is_provider is True with detailed profile
-    providers = db.query(User).filter(User.is_provider == True).all()
-    return providers
+    tutors = db.query(User).filter(User.is_provider == True).all()
+    return tutors
 
-@router.get("/projects")
-async def list_all_projects(
+@router.get("/courses")
+async def list_all_courses(
     admin: User = Depends(get_current_superadmin),
     db: Session = Depends(get_db)
 ):
-    projects = db.query(Project).all()
-    return projects
+    courses = db.query(Course).all()
+    return courses

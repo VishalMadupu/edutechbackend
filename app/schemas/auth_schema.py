@@ -11,6 +11,7 @@ class UserLogin(BaseModel):
     password: str
 
 class UserProfile(BaseModel):
+    id: int
     username: str
     email: str
     user_type: str
@@ -18,6 +19,7 @@ class UserProfile(BaseModel):
     last_name: Optional[str] = None
     phone_number: Optional[str] = None
     bio: Optional[str] = None
+    profile_image: Optional[str] = None
     hourly_rate: Optional[int] = None
     specialization: Optional[str] = None
 
