@@ -22,7 +22,17 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 @router.post("/student/signup", response_model=UserProfile)
 def student_signup(data: UserRegister, db: Session = Depends(get_db)):
     user = auth_services.create_user(db, data, 'student')
-    return {"username": user.username, "email": user.email, "user_type": "student"}
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "user_type": "student",
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "phone_number": user.phone_number,
+        "bio": user.bio,
+        "profile_image": user.profile_image
+    }
 
 @router.post("/student/login", response_model=Token)
 def student_login(data: UserLogin, db: Session = Depends(get_db)):
@@ -48,7 +58,17 @@ def student_login(data: UserLogin, db: Session = Depends(get_db)):
     return {
         "access_token": access_token, 
         "token_type": "bearer",
-        "user": {"username": user.username, "email": user.email, "user_type": "student"}
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "user_type": "student",
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "phone_number": user.phone_number,
+            "bio": user.bio,
+            "profile_image": user.profile_image
+        }
     }
 
 @router.get("/student/oauth")
@@ -166,7 +186,19 @@ async def auth_callback(request: Request, db: Session = Depends(get_db)):
 @router.post("/tutor/signup", response_model=UserProfile)
 def tutor_signup(data: UserRegister, db: Session = Depends(get_db)):
     user = auth_services.create_user(db, data, 'tutor')
-    return {"username": user.username, "email": user.email, "user_type": "tutor"}
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "user_type": "tutor",
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "phone_number": user.phone_number,
+        "bio": user.bio,
+        "profile_image": user.profile_image,
+        "hourly_rate": user.hourly_rate,
+        "specialization": user.specialization
+    }
 
 @router.post("/tutor/login", response_model=Token)
 def tutor_login(data: UserLogin, db: Session = Depends(get_db)):
@@ -192,7 +224,19 @@ def tutor_login(data: UserLogin, db: Session = Depends(get_db)):
     return {
         "access_token": access_token, 
         "token_type": "bearer",
-        "user": {"username": user.username, "email": user.email, "user_type": "tutor"}
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "user_type": "tutor",
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "phone_number": user.phone_number,
+            "bio": user.bio,
+            "profile_image": user.profile_image,
+            "hourly_rate": user.hourly_rate,
+            "specialization": user.specialization
+        }
     }
 
 # --- SuperAdmin Auth ---
@@ -200,7 +244,17 @@ def tutor_login(data: UserLogin, db: Session = Depends(get_db)):
 @router.post("/admin/signup", response_model=UserProfile)
 def admin_signup(data: UserRegister, db: Session = Depends(get_db)):
     user = auth_services.create_user(db, data, 'admin')
-    return {"username": user.username, "email": user.email, "user_type": "admin"}
+    return {
+        "id": user.id,
+        "username": user.username,
+        "email": user.email,
+        "user_type": "admin",
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "phone_number": user.phone_number,
+        "bio": user.bio,
+        "profile_image": user.profile_image
+    }
 
 @router.post("/admin/login", response_model=Token)
 def admin_login(data: UserLogin, db: Session = Depends(get_db)):
@@ -212,7 +266,17 @@ def admin_login(data: UserLogin, db: Session = Depends(get_db)):
     return {
         "access_token": access_token, 
         "token_type": "bearer",
-        "user": {"username": user.username, "email": user.email, "user_type": "admin"}
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "user_type": "admin",
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "phone_number": user.phone_number,
+            "bio": user.bio,
+            "profile_image": user.profile_image
+        }
     }
 
 
